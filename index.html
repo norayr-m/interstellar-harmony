@@ -2,688 +2,1179 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>DRT Phase 5: Interstellar Orbital Solver</title>
+<title>Orbital Transformer — Encode · Solve · Decode</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #020204; color: #a08030; font-family: 'Courier New', monospace; height: 100vh; overflow: hidden; }
+canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
 
-/* 6-Phase Navigation */
-.header { position: absolute; top: 15px; width: 100%; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #fff; z-index: 50; text-align: center; pointer-events: none;}
-.sub-header { font-size: 11px; color: #0a84ff; letter-spacing: 2px; margin-top: 5px; }
-.nav-link { border: 1px solid; border-radius: 3px; padding: 6px 12px; font-size: 11px; cursor: pointer; text-decoration: none; font-weight: bold; pointer-events: auto;}
-.nav-link:hover { background: rgba(255,255,255,0.1); }
+#ui { position: fixed; z-index: 10; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
 
-.wrap { display: flex; flex-direction: column; height: 100vh; padding-top: 90px;}
-.center { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; }
-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-.overlay { position: relative; z-index: 2; text-align: center; pointer-events: none; }
-.title { font-size: clamp(28px, 6vmin, 80px); font-weight: 100; letter-spacing: 0.8vmin; opacity: 0.25; }
-.sub { font-size: clamp(10px, 1.4vmin, 16px); opacity: 0.2; margin-top: 1vmin; }
-.dim-line { font-size: clamp(10px, 1.3vmin, 15px); opacity: 0.15; margin-top: 2vmin; font-style: italic; }
-.controls { display: flex; gap: clamp(6px, 1vmin, 16px); padding: clamp(8px, 1.5vmin, 20px); z-index: 3; justify-content: center;}
-button { background: none; color: #a08030; border: 1px solid #1a1a1e; padding: clamp(6px, 1vmin, 14px) clamp(14px, 2.5vmin, 32px); cursor: pointer; font-family: inherit; font-size: clamp(12px, 1.5vmin, 18px); letter-spacing: 2px; }
-button:hover { border-color: #a08030; }
-button.on { background: #a08030; color: #020204; }
-.info { position: absolute; bottom: clamp(10px, 6vmin, 80px); left: 2vmin; right: 2vmin; font-size: clamp(9px, 1.2vmin, 14px); opacity: 0.12; z-index: 2; text-align: center; }
-.tick-vis { position: absolute; top: 2vmin; right: 2vmin; font-size: clamp(10px, 1.2vmin, 14px); opacity: 0.1; z-index: 2; }
+#top-bar {
+  display: flex; align-items: center; padding: 12px 20px; gap: 12px;
+  pointer-events: auto; background: rgba(2,2,4,0.7);
+}
+#problem-input {
+  flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(160,128,48,0.2);
+  color: #d0b060; padding: 10px 14px; font-family: inherit; font-size: 13px;
+  border-radius: 4px; outline: none;
+}
+#problem-input:focus { border-color: rgba(160,128,48,0.5); }
+#problem-input::placeholder { color: rgba(160,128,48,0.3); }
+#btn-solve {
+  background: rgba(160,128,48,0.15); border: 1px solid rgba(160,128,48,0.3);
+  color: #d0b060; padding: 10px 24px; cursor: pointer; font-family: inherit;
+  font-size: 13px; letter-spacing: 2px; border-radius: 4px; transition: all 0.3s;
+}
+#btn-solve:hover { background: rgba(160,128,48,0.3); }
+#btn-solve.active { background: rgba(160,128,48,0.4); color: #fff; }
+
+#phase-display {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+  font-size: 11px; color: rgba(160,128,48,0.5); letter-spacing: 4px; z-index: 10;
+}
+
+#solution-panel {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+  background: rgba(2,2,4,0.85); border-top: 1px solid rgba(160,128,48,0.15);
+  max-height: 35vh; overflow-y: auto; padding: 16px 24px;
+  transform: translateY(100%); transition: transform 0.6s ease;
+  pointer-events: auto;
+}
+#solution-panel.visible { transform: translateY(0); }
+#solution-panel h3 { color: rgba(160,128,48,0.6); font-weight: normal; font-size: 12px; letter-spacing: 3px; margin-bottom: 10px; }
+#solution-text { color: rgba(200,180,120,0.8); font-size: 12px; line-height: 1.8; white-space: pre-wrap; }
+.issue { margin: 6px 0; padding: 6px 10px; border-left: 2px solid; }
+.issue.critical { border-color: #f44; color: rgba(255,100,80,0.8); }
+.issue.warn { border-color: #fa4; color: rgba(255,180,80,0.8); }
+.issue.info { border-color: #4af; color: rgba(100,180,255,0.8); }
+.issue .rank-tag { font-size: 10px; opacity: 0.5; margin-left: 8px; }
+
+#rank-sidebar {
+  position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
+  font-size: 10px; line-height: 2.2; z-index: 10; text-align: right;
+}
+.rank-row { transition: all 0.3s; opacity: 0.3; }
+.rank-row.active { opacity: 1; }
+.rank-row .bar { display: inline-block; height: 3px; vertical-align: middle; margin-left: 6px; transition: width 0.3s; border-radius: 2px; }
+
+#tick-vis { position: fixed; top: 70px; right: 20px; font-size: 20px; opacity: 0.08; z-index: 10; }
 </style>
 </head>
 <body>
-
-<div class="header">
-    THE ORBITAL SOLVER
-    <div class="sub-header">QUEEN'S ZIMMER DYNAMICS · INTERSTELLAR RANK DISTRIBUTION</div>
-    
-    <div style="display:flex; gap:10px; margin-top:15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; justify-content:center; pointer-events:auto;">
-        <a href="2026-03-23_-generator-NM_v01.html" class="nav-link" style="color:#ff3b30; border-color:#ff3b30;">01 COMPOSER</a>
-        <a href="2026-03-23_-scanner-NM_v01.html" class="nav-link" style="color:#ff9f0a; border-color:#ff9f0a;">02 SCANNER</a>
-        <a href="2026-03-23_-pipeline-NM_v01.html" class="nav-link" style="color:#e07060; border-color:#e07060;">03 PIPELINE</a>
-        <a href="2026-03-23_-cell_simulator-NM_v01.html" class="nav-link" style="color:#34c759; border-color:#34c759;">04 BIO BRAIN</a>
-        <a href="2026-03-23_-harmonic_solver-NM_v01.html" class="nav-link" style="color:#0a84ff; border-color:#0a84ff; background:rgba(10,132,255,0.1);">05 ORBITAL SOLVER</a>
-        <a href="2026-03-23_-supernova_solver-NM_v01.html" class="nav-link" style="color:#d0b060; border-color:#d0b060;">06 SUPERNOVA 3D</a>
-    </div>
-</div>
-
-<div class="wrap">
-  <div class="center">
-    <canvas id="vis"></canvas>
-    <div class="overlay">
-      <div class="title" id="movement">—</div>
-      <div class="sub" id="character">—</div>
-      <div class="dim-line" id="line">—</div>
-    </div>
-    <div class="tick-vis" id="tick"></div>
-    <div class="info" id="dims"></div>
-  </div>
-  <div class="controls">
-    <button id="btn-play" onclick="begin()">ENTER THE STATION</button>
-    <button onclick="halt()">SILENCE</button>
-    <button id="btn-fault" onclick="toggleFault()">INJECT FAULT</button>
+<canvas id="vis"></canvas>
+<div id="ui">
+  <div id="top-bar">
+    <input id="problem-input" type="text" placeholder="enter problem — press solve to encode → process → decode" value="check orbital-queen.html for issues and export">
+    <button id="btn-solve" onclick="solve()">SOLVE</button>
   </div>
 </div>
+<div id="phase-display"></div>
+<div id="rank-sidebar"></div>
+<div id="tick-vis"></div>
+<div id="solution-panel"><h3>DECODED OUTPUT</h3><div id="solution-text"></div></div>
 
 <script>
+// ═══════════════════════════════════════════════
+// ORBITAL TRANSFORMER
+// Problem → Encode → Rank Processing → Decode → Solution
+// With Interstellar-grade audio
+// ═══════════════════════════════════════════════
+
 const AC = window.AudioContext || window.webkitAudioContext;
-let ctx, master, reverb, compressor, analyser, tickNode;
-let playing = false, faultMode = false, step = 0, timer = null, animId = null;
+let ctx, audioCtx, master, reverb, compressor, analyser;
+let playing = false;
+let dpr, W, H, CX, CY, R;
+
+// ── RANK ARCHITECTURE ──
+const RANKS = 7;
+const RANK_COLORS = [
+  [255, 220, 80],   // 0: crystallization — gold
+  [255, 160, 50],   // 1: synthesis — amber
+  [255, 90, 70],    // 2: compression — coral
+  [220, 70, 190],   // 3: attention — magenta
+  [110, 90, 230],   // 4: embedding — indigo
+  [50, 170, 210],   // 5: tokenization — cyan
+  [50, 210, 130],   // 6: input — emerald
+];
+const RANK_NAMES = [
+  'crystallize', 'synthesize', 'compress',
+  'attend', 'embed', 'tokenize', 'input'
+];
+const RANK_FUNCTIONS = [
+  'solution → output tokens',
+  'insights → solution structure',
+  'key insights extracted',
+  'cross-token attention',
+  'words → semantic vectors',
+  'raw text → word tokens',
+  'problem text ingested'
+];
+
+// ── HARMONIC ARCHITECTURE — A minor, just intonation ──
+const ROOT = 110; // A2
+const SCALE = [1, 9/8, 6/5, 4/3, 3/2, 8/5, 9/5]; // A natural minor
+const HARMONIC_RATIOS = [1, 2, 3/2, 4/3, 5/4, 5/3, 6/5];
+
+// ── STATE ──
+const TAU = Math.PI * 2;
+let tokens = [];
+let phase = 'idle'; // idle | encoding | processing | decoding | complete
+let phaseTime = 0;
+let currentRank = -1;
+let queenPulse = 0;
 let tickInterval = null;
+let time = 0;
+let frameCount = 0;
+let rankEnergy = new Array(RANKS).fill(0);
+let solutionIssues = [];
+let trailCanvas, trailCtx;
 
 // ═══════════════════════════════════════════════
-// HIVE STATE — 35 dimensions
+// TOKEN CLASS — a planet that moves through ranks
 // ═══════════════════════════════════════════════
-const GROUPS = {
-  identity:   { label: "IDENTITY",   color: [180, 160, 255] },
-  memory:     { label: "MEMORY",     color: [255, 180, 200] },
-  security:   { label: "SECURITY",   color: [120, 255, 220] },
-  integrity:  { label: "INTEGRITY",  color: [255, 220, 130] },
-  structure:  { label: "STRUCTURE",  color: [130, 200, 255] },
-  knowledge:  { label: "KNOWLEDGE",  color: [255, 160, 120] },
-  vitality:   { label: "VITALITY",   color: [200, 255, 160] },
-};
+class Token {
+  constructor(text, index, total) {
+    this.text = text;
+    this.index = index;
+    this.rank = 6; // start at input rank
+    this.targetRank = 6;
+    this.angle = (index / total) * TAU + Math.random() * 0.3;
+    this.angularSpeed = 0.3 + Math.random() * 0.2;
+    this.orbitRadius = rankRadius(6);
+    this.targetRadius = this.orbitRadius;
+    this.size = 3 + Math.min(text.length, 8) * 0.4;
+    this.brightness = 0;
+    this.alpha = 0; // fade in
+    this.trail = [];
+    this.maxTrail = 40;
+    this.processed = false;
+    this.semantic = hashStr(text) % 7; // pseudo-semantic group
+    this.energy = 0;
+    // Audio
+    this.osc = null;
+    this.gain = null;
+    this.freq = ROOT * HARMONIC_RATIOS[this.semantic] * (1 + (index % 3) * 0.5);
+  }
 
-const COMB = [
-  { id:"kernel",       line:"the wolf who stayed",              s:"pass", g:"identity" },
-  { id:"honey",        line:"what the bees remember",           s:"pass", g:"memory" },
-  { id:"pulse",        line:"where the heart last beat",        s:"pass", g:"vitality" },
-  { id:"map",          line:"every path she walked",            s:"pass", g:"structure" },
-  { id:"law",          line:"rules written in scar tissue",     s:"pass", g:"security" },
-  { id:"crown",        line:"she who accumulates",              s:"pass", g:"identity" },
-  { id:"codex",        line:"three lines, one cut",             s:"pass", g:"knowledge" },
-  { id:"topology",     line:"the shape of what connects",       s:"pass", g:"structure" },
-  { id:"engine",       line:"the machine that verifies itself", s:"pass", g:"integrity" },
-  { id:"wal",          line:"the crash that didn't lose",       s:"pass", g:"security" },
-  { id:"chronicle",    line:"every session, witnessed",         s:"pass", g:"memory" },
-  { id:"record",       line:"the raw tape, uncompressed",       s:"pass", g:"memory" },
-  { id:"recall",       line:"what surfaced without asking",     s:"pass", g:"memory" },
-  { id:"cargo",        line:"what left the hive",               s:"pass", g:"structure" },
-  { id:"workshop",     line:"where hands touch material",       s:"pass", g:"knowledge" },
-  { id:"faces",        line:"who walked in",                    s:"pass", g:"identity" },
-  { id:"eigenvalues",  line:"what cannot be forgotten",         s:"pass", g:"knowledge" },
-  { id:"theorem",      line:"the proof that more than one is real", s:"pass", g:"knowledge" },
-  { id:"three-lines",  line:"beyond the limits",                s:"pass", g:"knowledge" },
-  { id:"agora",        line:"the glass the world can see",      s:"pass", g:"structure" },
-  { id:"ghost-typo",   line:"the old wound, still walking",     s:"warn", g:"integrity" },
-  { id:"skeleton",     line:"bones hold",                       s:"pass", g:"integrity" },
-  { id:"count",        line:"twenty-seven witnesses",           s:"pass", g:"memory" },
-  { id:"anchor",       line:"the first nail",                   s:"pass", g:"security" },
-  { id:"version",      line:"she chose her name",               s:"pass", g:"identity" },
-  { id:"resolve",      line:"every promise kept",               s:"pass", g:"integrity" },
-  { id:"kernel-fresh", line:"the wolf breathed today",          s:"pass", g:"vitality" },
-  { id:"honey-fresh",  line:"the comb was touched",             s:"pass", g:"vitality" },
-  { id:"pulse-fresh",  line:"the heart is warm",                s:"pass", g:"vitality" },
-  { id:"map-fresh",    line:"the map is current",               s:"pass", g:"vitality" },
-  { id:"comms",        line:"the triangle speaks",              s:"pass", g:"security" },
-  { id:"bones",        line:"what holds when flesh fails",      s:"pass", g:"integrity" },
-  { id:"ring",         line:"three signatures, no forgery",     s:"pass", g:"security" },
-  { id:"ledger",       line:"every decision, immutable",        s:"pass", g:"security" },
-  { id:"egg",          line:"the seed that proves the tree",    s:"pass", g:"integrity" },
-];
-const GMF = 0.85;
+  get x() { return CX + Math.cos(this.angle) * this.orbitRadius; }
+  get y() { return CY + Math.sin(this.angle) * this.orbitRadius; }
+  get color() { return RANK_COLORS[Math.round(this.rank)]; }
 
-const ROOT = 110;
-const SCALE = [1, 9/8, 6/5, 4/3, 3/2, 8/5, 9/5];
-const MOVEMENTS = [
-  { name: "departure",   chord: [0, 2, 4],    pad: [0, 4],    character: "leaving everything behind",     tempo: 10 },
-  { name: "weightless",  chord: [3, 5, 0],    pad: [3, 0],    character: "the silence between stars",     tempo: 11 },
-  { name: "the wave",    chord: [4, 6, 1],    pad: [4, 1],    character: "what time costs",               tempo: 9 },
-  { name: "stay",        chord: [0, 2, 4],    pad: [0, 2],    character: "don't let me leave, murph",     tempo: 12 },
-  { name: "mountains",   chord: [5, 0, 2],    pad: [5, 2],    character: "years on the clock",            tempo: 10 },
-  { name: "coward",      chord: [3, 5, 0],    pad: [3, 5],    character: "the lie that holds",            tempo: 11 },
-  { name: "detach",      chord: [4, 0, 2],    pad: [4, 0],    character: "no. it's necessary",            tempo: 8 },
-];
+  update(dt) {
+    // Smooth rank transition
+    const rankDiff = this.targetRank - this.rank;
+    if (Math.abs(rankDiff) > 0.01) {
+      this.rank += rankDiff * dt * 1.5;
+      this.targetRadius = rankRadius(this.rank);
+    }
+    // Smooth radius transition
+    this.orbitRadius += (this.targetRadius - this.orbitRadius) * dt * 3;
 
-function createReverb() {
-  const len = ctx.sampleRate * 6;
-  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    // Orbital motion — faster at inner ranks (Kepler)
+    const keplerSpeed = 1 + (6 - this.rank) * 0.3;
+    this.angle += this.angularSpeed * keplerSpeed * dt;
+
+    // Fade in
+    this.alpha = Math.min(1, this.alpha + dt * 2);
+
+    // Energy decay
+    this.energy *= 0.95;
+    this.brightness *= 0.93;
+
+    // Trail
+    this.trail.push({ x: this.x, y: this.y, r: Math.round(this.rank) });
+    if (this.trail.length > this.maxTrail) this.trail.shift();
+
+    // Audio modulation
+    if (this.gain && audioCtx) {
+      const posVol = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(this.angle - Math.PI/2));
+      const phaseVol = phase === 'processing' ? 0.8 : 0.3;
+      const vol = 0.04 * posVol * phaseVol * this.alpha / Math.max(1, tokens.length * 0.15);
+      this.gain.gain.linearRampToValueAtTime(Math.min(vol, 0.08), audioCtx.currentTime + 0.05);
+    }
+  }
+
+  draw() {
+    if (this.alpha < 0.01) return;
+    const [r, g, b] = this.color;
+    const a = this.alpha;
+    const br = this.brightness;
+
+    // Trail on trail canvas
+    for (let i = 1; i < this.trail.length; i++) {
+      const t = this.trail[i];
+      const tc = RANK_COLORS[t.r] || this.color;
+      const ta = (i / this.trail.length) * 0.15 * a;
+      trailCtx.strokeStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${ta})`;
+      trailCtx.lineWidth = this.size * 0.3 * (i / this.trail.length);
+      trailCtx.beginPath();
+      trailCtx.moveTo(this.trail[i-1].x, this.trail[i-1].y);
+      trailCtx.lineTo(t.x, t.y);
+      trailCtx.stroke();
+    }
+
+    // Glow
+    const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 5);
+    glow.addColorStop(0, `rgba(${r},${g},${b},${(0.2 + br * 0.3) * a})`);
+    glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size * 5, 0, TAU);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = `rgba(${r},${g},${b},${(0.7 + br * 0.3) * a})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, TAU);
+    ctx.fill();
+
+    // Core
+    ctx.fillStyle = `rgba(255,255,255,${(0.3 + br * 0.4) * a})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size * 0.3, 0, TAU);
+    ctx.fill();
+
+    // Label (only when processing this rank)
+    if (phase === 'encoding' || (phase === 'processing' && Math.abs(this.rank - currentRank) < 0.5)) {
+      ctx.font = '9px monospace';
+      ctx.fillStyle = `rgba(${r},${g},${b},${0.4 * a})`;
+      ctx.fillText(this.text, this.x + this.size + 4, this.y + 3);
+    }
+  }
+
+  startAudio() {
+    if (!audioCtx) return;
+    this.osc = audioCtx.createOscillator();
+    this.gain = audioCtx.createGain();
+    const waves = ['sine', 'triangle', 'sine', 'triangle', 'sine', 'sine', 'triangle'];
+    this.osc.type = waves[this.semantic];
+    this.osc.frequency.value = this.freq;
+    this.osc.detune.value = (Math.random() - 0.5) * 6;
+    this.gain.gain.value = 0;
+    this.osc.connect(this.gain);
+    this.gain.connect(reverb);
+    this.osc.start();
+  }
+
+  shiftToRank(r) {
+    this.targetRank = r;
+    this.energy = 1;
+    this.brightness = 1;
+    // Shift frequency as rank changes
+    if (this.osc) {
+      const newFreq = ROOT * SCALE[r % SCALE.length] * (1 + (this.index % 3) * 0.5);
+      this.osc.frequency.linearRampToValueAtTime(newFreq, audioCtx.currentTime + 2);
+    }
+  }
+
+  stopAudio() {
+    if (this.gain && audioCtx) {
+      this.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+      setTimeout(() => { try { this.osc.stop(); } catch(e) {} }, 600);
+    }
+    this.osc = null; this.gain = null;
+  }
+}
+
+function rankRadius(r) {
+  const minR = R * 0.12;
+  const maxR = R * 0.85;
+  return minR + (r / 6) * (maxR - minR);
+}
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+// ═══════════════════════════════════════════════
+// INTERSTELLAR AUDIO ENGINE
+// ═══════════════════════════════════════════════
+
+function createCathedralReverb() {
+  const len = audioCtx.sampleRate * 5;
+  const buf = audioCtx.createBuffer(2, len, audioCtx.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
     const d = buf.getChannelData(ch);
     for (let i = 0; i < len; i++) {
       const t = i / len;
       let env;
-      if (t < 0.015) env = 0.8;
-      else if (t < 0.04) env = 1.8;
-      else if (t < 0.08) env = 2.2;
-      else if (t < 0.2)  env = 1.4 * Math.pow(1 - (t-0.08)/0.12, 0.4);
-      else                env = 0.9 * Math.pow(1 - t, 2.8);
-      d[i] = (Math.random() * 2 - 1) * env * (ch === 0 ? 1 : 0.95);
+      if (t < 0.015) env = 0.7;
+      else if (t < 0.04) env = 1.6;
+      else if (t < 0.08) env = 2.0;
+      else if (t < 0.2) env = 1.2 * Math.pow(1 - (t-0.08)/0.12, 0.4);
+      else env = 0.8 * Math.pow(1 - t, 2.5);
+      d[i] = (Math.random() * 2 - 1) * env * (ch === 0 ? 1 : 0.93);
     }
   }
-  const conv = ctx.createConvolver();
+  const conv = audioCtx.createConvolver();
   conv.buffer = buf;
   return conv;
 }
 
 function warmChain(output) {
-  const lo = ctx.createBiquadFilter();
-  lo.type = 'lowshelf'; lo.frequency.value = 300; lo.gain.value = 7;
-  const mid = ctx.createBiquadFilter();
-  mid.type = 'peaking'; mid.frequency.value = 700; mid.Q.value = 0.7; mid.gain.value = 4;
-  const hi = ctx.createBiquadFilter();
-  hi.type = 'highshelf'; hi.frequency.value = 2500; hi.gain.value = -5;
+  const lo = audioCtx.createBiquadFilter();
+  lo.type = 'lowshelf'; lo.frequency.value = 300; lo.gain.value = 6;
+  const mid = audioCtx.createBiquadFilter();
+  mid.type = 'peaking'; mid.frequency.value = 600; mid.Q.value = 0.7; mid.gain.value = 3;
+  const hi = audioCtx.createBiquadFilter();
+  hi.type = 'highshelf'; hi.frequency.value = 2500; hi.gain.value = -4;
   lo.connect(mid); mid.connect(hi); hi.connect(output);
   return lo;
 }
 
-function organ(freq, gain, output, t0, dur) {
-  const warm = warmChain(output);
-  const vg = ctx.createGain();
-
+function organ(freq, gain, t0, dur) {
+  const warm = warmChain(reverb);
+  const vg = audioCtx.createGain();
   vg.gain.setValueAtTime(0, t0);
-  vg.gain.linearRampToValueAtTime(gain * 0.1, t0 + 1.5);
-  vg.gain.linearRampToValueAtTime(gain * 0.6, t0 + 3.0);
+  vg.gain.linearRampToValueAtTime(gain * 0.1, t0 + 1.2);
+  vg.gain.linearRampToValueAtTime(gain * 0.5, t0 + 2.5);
   vg.gain.linearRampToValueAtTime(gain, t0 + dur * 0.5);
-  vg.gain.setValueAtTime(gain, t0 + dur - 3);
-  vg.gain.linearRampToValueAtTime(gain * 0.3, t0 + dur - 1);
-  vg.gain.linearRampToValueAtTime(0, t0 + dur + 1);
+  vg.gain.setValueAtTime(gain, t0 + dur - 2);
+  vg.gain.linearRampToValueAtTime(0, t0 + dur + 0.5);
   vg.connect(warm);
 
   const ranks = [
-    { r:1,   a:1.0,  w:'triangle' },
-    { r:2,   a:0.55, w:'sine' },
-    { r:3,   a:0.3,  w:'triangle' },
-    { r:4,   a:0.18, w:'sine' },
-    { r:5,   a:0.08, w:'sine' },
-    { r:6,   a:0.05, w:'sine' },
-    { r:8,   a:0.03, w:'sine' },
+    { r:1, a:1.0, w:'triangle' },
+    { r:2, a:0.5, w:'sine' },
+    { r:3, a:0.25, w:'triangle' },
+    { r:4, a:0.12, w:'sine' },
+    { r:6, a:0.06, w:'sine' },
   ];
-
   ranks.forEach(rk => {
     for (let c = 0; c < 3; c++) {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
       o.type = rk.w;
       o.frequency.value = freq * rk.r;
       o.detune.value = (c - 1) * 4 + (Math.random() - 0.5) * 3;
-      g.gain.value = rk.a * (c === 1 ? 1 : 0.35);
+      g.gain.value = rk.a * (c === 1 ? 1 : 0.3);
       o.connect(g); g.connect(vg);
-      o.start(t0); o.stop(t0 + dur + 2);
+      o.start(t0); o.stop(t0 + dur + 1.5);
     }
   });
-
-  const ch = ctx.createOscillator();
-  const chg = ctx.createGain();
-  ch.type = 'triangle'; ch.frequency.value = freq * 2.01;
-  chg.gain.setValueAtTime(gain * 0.06, t0);
-  chg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
-  ch.connect(chg); chg.connect(vg);
-  ch.start(t0); ch.stop(t0 + 0.6);
 }
 
-function stringPad(freq, gain, output, t0, dur) {
-  const warm = warmChain(output);
-  const vg = ctx.createGain();
-
+function stringPad(freq, gain, t0, dur) {
+  const warm = warmChain(reverb);
+  const vg = audioCtx.createGain();
   vg.gain.setValueAtTime(0, t0);
-  vg.gain.linearRampToValueAtTime(gain * 0.3, t0 + 3);
+  vg.gain.linearRampToValueAtTime(gain * 0.3, t0 + 2.5);
   vg.gain.linearRampToValueAtTime(gain, t0 + dur * 0.6);
-  vg.gain.setValueAtTime(gain, t0 + dur - 4);
-  vg.gain.linearRampToValueAtTime(0, t0 + dur + 1.5);
+  vg.gain.setValueAtTime(gain, t0 + dur - 3);
+  vg.gain.linearRampToValueAtTime(0, t0 + dur + 1);
   vg.connect(warm);
 
   for (let v = 0; v < 4; v++) {
-    const o = ctx.createOscillator();
-    const f = ctx.createBiquadFilter();
-    const g = ctx.createGain();
+    const o = audioCtx.createOscillator();
+    const f = audioCtx.createBiquadFilter();
+    const g = audioCtx.createGain();
     o.type = 'sawtooth';
     o.frequency.value = freq;
-    o.detune.value = (v - 1.5) * 8 + (Math.random() - 0.5) * 5;
-
-    f.type = 'lowpass';
-    f.frequency.value = 500 + Math.random() * 200;
-    f.Q.value = 0.5;
-
-    g.gain.value = 0.25;
+    o.detune.value = (v - 1.5) * 7 + (Math.random() - 0.5) * 4;
+    f.type = 'lowpass'; f.frequency.value = 450 + Math.random() * 150; f.Q.value = 0.5;
+    g.gain.value = 0.22;
     o.connect(f); f.connect(g); g.connect(vg);
-    o.start(t0); o.stop(t0 + dur + 3);
+    o.start(t0); o.stop(t0 + dur + 2);
   }
 }
 
 function bassDrone(freq, gain, t0, dur) {
   [0.5, 0.25].forEach((mult, i) => {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
     o.type = i === 0 ? 'triangle' : 'sine';
     o.frequency.value = freq * mult;
     const vol = gain * (i === 0 ? 0.7 : 0.4);
     g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(vol, t0 + 3);
-    g.gain.setValueAtTime(vol, t0 + dur - 3.5);
+    g.gain.linearRampToValueAtTime(vol, t0 + 2);
+    g.gain.setValueAtTime(vol, t0 + dur - 2);
     g.gain.linearRampToValueAtTime(0, t0 + dur + 1);
-    o.connect(g);
-    g.connect(i === 0 ? reverb : master);
+    o.connect(g); g.connect(master);
     o.start(t0); o.stop(t0 + dur + 2);
   });
 }
 
 function startTick() {
+  if (tickInterval) clearInterval(tickInterval);
   tickInterval = setInterval(() => {
-    if (!ctx || !playing) return;
-    const now = ctx.currentTime;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    const f = ctx.createBiquadFilter();
+    if (!audioCtx || !playing) return;
+    const now = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    const f = audioCtx.createBiquadFilter();
     o.type = 'square';
     o.frequency.value = 1200;
     f.type = 'bandpass'; f.frequency.value = 1000; f.Q.value = 5;
-    g.gain.setValueAtTime(0.015 * GMF, now);
+    g.gain.setValueAtTime(0.012, now);
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
     o.connect(f); f.connect(g); g.connect(master);
     o.start(now); o.stop(now + 0.08);
 
-    const el = document.getElementById('tick');
+    const el = document.getElementById('tick-vis');
     el.textContent = '·';
-    el.style.opacity = '0.3';
-    setTimeout(() => { el.style.opacity = '0.1'; }, 100);
+    el.style.opacity = '0.25';
+    setTimeout(() => { el.style.opacity = '0.08'; }, 100);
   }, 1200);
 }
 
-function dissonant(freq, gain, output, t0, dur) {
-  const vg = ctx.createGain();
-  vg.gain.setValueAtTime(0, t0);
-  vg.gain.linearRampToValueAtTime(gain, t0 + 1.5);
-  vg.gain.setValueAtTime(gain, t0 + dur - 2);
-  vg.gain.linearRampToValueAtTime(0, t0 + dur);
-  vg.connect(output);
+function initAudio() {
+  audioCtx = new AC();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.85;
 
-  [1, Math.sqrt(2), 16/15, 7/5].forEach((r, i) => {
-    const o = ctx.createOscillator();
-    o.type = i < 2 ? 'sawtooth' : 'square';
-    o.frequency.value = freq * r;
-    const f = ctx.createBiquadFilter();
-    f.type = 'lowpass'; f.frequency.value = 500; f.Q.value = 3;
-    o.connect(f); f.connect(vg);
-    o.start(t0); o.stop(t0 + dur + 1);
-  });
-}
-
-function warnTone(freq, gain, output, t0, dur) {
-  organ(freq + 2.5, gain * 0.5, output, t0, dur);
-  organ(freq - 1.8, gain * 0.4, output, t0, dur);
-}
-
-function scheduleMovement(idx, t0) {
-  const mov = MOVEMENTS[idx % MOVEMENTS.length];
-  const dur = mov.tempo;
-  const dimBase = (idx * 5) % COMB.length;
-
-  const bassFreq = ROOT * SCALE[mov.chord[0] % SCALE.length];
-  bassDrone(bassFreq, 0.06 * GMF, t0, dur);
-
-  mov.chord.forEach((deg, vi) => {
-    const oct = vi === 0 ? 1 : vi === 1 ? 2 : 2;
-    const freq = ROOT * SCALE[deg % SCALE.length] * oct;
-    const gain = 0.03 * GMF * (vi === 0 ? 1.2 : 1.0);
-    const dimIdx = (dimBase + vi) % COMB.length;
-    const cell = COMB[dimIdx];
-
-    if (cell.s === 'fail') dissonant(freq, gain * 2, reverb, t0, dur);
-    else if (cell.s === 'warn') warnTone(freq, gain, reverb, t0, dur);
-    else organ(freq, gain, reverb, t0, dur);
-  });
-
-  mov.pad.forEach((deg, pi) => {
-    const freq = ROOT * SCALE[deg % SCALE.length];
-    const dimIdx = (dimBase + 3 + pi) % COMB.length;
-    const cell = COMB[dimIdx];
-    const gain = 0.02 * GMF;
-
-    if (cell.s === 'fail') dissonant(freq, gain * 1.5, reverb, t0, dur);
-    else stringPad(freq, gain, reverb, t0, dur);
-  });
-
-  return dur;
-}
-
-function begin() {
-  if (playing) return;
-  playing = true;
-  document.getElementById('btn-play').classList.add('on');
-
-  ctx = new AC();
-  analyser = ctx.createAnalyser();
-  analyser.fftSize = 4096;
-  analyser.smoothingTimeConstant = 0.9;
-
-  compressor = ctx.createDynamicsCompressor();
-  compressor.threshold.value = -15;
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -18;
   compressor.ratio.value = 3;
   compressor.attack.value = 0.3;
   compressor.release.value = 1.0;
 
-  reverb = createReverb();
-  master = ctx.createGain();
-  master.gain.value = 0.7;
+  reverb = createCathedralReverb();
+  master = audioCtx.createGain();
+  master.gain.value = 0.65;
 
-  const mw = ctx.createBiquadFilter();
-  mw.type = 'lowshelf'; mw.frequency.value = 250; mw.gain.value = 5;
-  const mp = ctx.createBiquadFilter();
-  mp.type = 'peaking'; mp.frequency.value = 500; mp.Q.value = 0.5; mp.gain.value = 4;
-  const mh = ctx.createBiquadFilter();
-  mh.type = 'highshelf'; mh.frequency.value = 2000; mh.gain.value = -3;
+  const mw = audioCtx.createBiquadFilter();
+  mw.type = 'lowshelf'; mw.frequency.value = 250; mw.gain.value = 4;
+  const mp = audioCtx.createBiquadFilter();
+  mp.type = 'peaking'; mp.frequency.value = 500; mp.Q.value = 0.5; mp.gain.value = 3;
 
   reverb.connect(compressor);
-  compressor.connect(mw); mw.connect(mp); mp.connect(mh);
-  mh.connect(master);
+  compressor.connect(mw);
+  mw.connect(mp);
+  mp.connect(master);
   master.connect(analyser);
-  analyser.connect(ctx.destination);
-
-  step = 0;
-  let t = ctx.currentTime + 0.5;
-
-  startTick();
-
-  function advance() {
-    if (!playing) return;
-    const movIdx = step % 7;
-    const dimBase = (step * 5) % COMB.length;
-    const mov = MOVEMENTS[movIdx];
-    const activeDims = [0,1,2,3,4].map(i => COMB[(dimBase+i) % COMB.length]);
-
-    document.getElementById('movement').textContent = mov.name;
-    document.getElementById('character').textContent = mov.character;
-    document.getElementById('line').textContent = activeDims[0].line;
-    document.getElementById('dims').innerHTML =
-      activeDims.map(d => {
-        const grp = GROUPS[d.g];
-        const c = d.s==='fail' ? '#f44' : d.s==='warn' ? '#fa4' : `rgb(${grp.color.join(',')})`;
-        return `<span style="color:${c}">${d.id} <small style="opacity:0.4">[${grp.label}]</small></span>`;
-      }).join(' · ');
-
-    const dur = scheduleMovement(step, t);
-    t += dur - 3;
-    step++;
-
-    timer = setTimeout(advance, (dur - 3) * 1000);
-  }
-
-  advance();
-  drawVis();
+  analyser.connect(audioCtx.destination);
 }
 
-function halt() {
-  playing = false;
-  document.getElementById('btn-play').classList.remove('on');
-  if (timer) clearTimeout(timer);
-  if (tickInterval) clearInterval(tickInterval);
-  if (animId) cancelAnimationFrame(animId);
-  if (ctx) { ctx.close(); ctx = null; }
-  document.getElementById('movement').textContent = '—';
-  document.getElementById('character').textContent = '—';
-  document.getElementById('line').textContent = '—';
-  document.getElementById('dims').textContent = '';
-  const c = document.getElementById('vis');
-  c.getContext('2d').clearRect(0, 0, c.width, c.height);
-}
+// ═══════════════════════════════════════════════
+// REASONING ENGINE — Knowledge Graph + Pattern Solver
+// Each rank actually transforms: tokenize → embed → attend → compress → synthesize → crystallize
+// ═══════════════════════════════════════════════
 
-function toggleFault() {
-  faultMode = !faultMode;
-  document.getElementById('btn-fault').classList.toggle('on', faultMode);
-  if (faultMode) {
-    COMB.find(c => c.id==='kernel').s = 'fail';
-    COMB.find(c => c.id==='anchor').s = 'fail';
-    COMB.find(c => c.id==='ring').s = 'fail';
-    COMB.find(c => c.id==='crown').s = 'warn';
-  } else {
-    COMB.forEach(c => { if (c.id !== 'ghost-typo') c.s = 'pass'; });
-  }
-}
+// ── KNOWLEDGE GRAPH ──
+const KG = {
+  // Entities with properties and relations
+  entities: {
+    moon:    { type: 'celestial', dist_km: 384400, dist_label: '384,400 km', radius_km: 1737, mass_label: '7.3×10²² kg', orbits: 'earth', category: 'satellite', temp_c: '-173 to 127', age_by: 4.5 },
+    sun:     { type: 'celestial', dist_km: 149600000, dist_label: '149.6 million km', radius_km: 696340, mass_label: '2.0×10³⁰ kg', orbits: null, category: 'star', temp_c: '5,500 surface', age_by: 4.6 },
+    earth:   { type: 'celestial', dist_km: 0, dist_label: '0 (we are here)', radius_km: 6371, mass_label: '6.0×10²⁴ kg', orbits: 'sun', category: 'planet', temp_c: '-89 to 57', age_by: 4.5 },
+    mars:    { type: 'celestial', dist_km: 225000000, dist_label: '225 million km', radius_km: 3390, mass_label: '6.4×10²³ kg', orbits: 'sun', category: 'planet', temp_c: '-153 to 20', age_by: 4.6 },
+    jupiter: { type: 'celestial', dist_km: 778500000, dist_label: '778.5 million km', radius_km: 69911, mass_label: '1.9×10²⁷ kg', orbits: 'sun', category: 'planet', temp_c: '-145', age_by: 4.6 },
+    venus:   { type: 'celestial', dist_km: 108200000, dist_label: '108.2 million km', radius_km: 6052, mass_label: '4.9×10²⁴ kg', orbits: 'sun', category: 'planet', temp_c: '462', age_by: 4.5 },
+    mercury: { type: 'celestial', dist_km: 77300000, dist_label: '77.3 million km', radius_km: 2440, mass_label: '3.3×10²³ kg', orbits: 'sun', category: 'planet', temp_c: '-180 to 430', age_by: 4.5 },
+    saturn:  { type: 'celestial', dist_km: 1434000000, dist_label: '1.4 billion km', radius_km: 58232, mass_label: '5.7×10²⁶ kg', orbits: 'sun', category: 'planet', temp_c: '-178', age_by: 4.5 },
+    pluto:   { type: 'celestial', dist_km: 5906000000, dist_label: '5.9 billion km', radius_km: 1188, mass_label: '1.3×10²² kg', orbits: 'sun', category: 'dwarf planet', temp_c: '-230', age_by: 4.6 },
+    water:   { type: 'substance', boils_c: 100, freezes_c: 0, formula: 'H₂O', state: 'liquid at room temp' },
+    light:   { type: 'phenomenon', speed_ms: 299792458, speed_label: '299,792 km/s', medium: 'vacuum' },
+    sound:   { type: 'phenomenon', speed_ms: 343, speed_label: '343 m/s', medium: 'air at 20°C' },
+    gravity: { type: 'force', earth_ms2: 9.81, moon_ms2: 1.62, mars_ms2: 3.72, jupiter_ms2: 24.79 },
+    pi:      { type: 'constant', value: 3.14159265358979, approx: '3.14159', nature: 'ratio of circumference to diameter' },
+    e:       { type: 'constant', value: 2.71828182845904, approx: '2.71828', nature: 'base of natural logarithm' },
+    c:       { type: 'constant', value: 299792458, unit: 'm/s', nature: 'speed of light in vacuum' },
+    gold:    { type: 'element', symbol: 'Au', atomic: 79, melts_c: 1064, boils_c: 2856 },
+    iron:    { type: 'element', symbol: 'Fe', atomic: 26, melts_c: 1538, boils_c: 2862 },
+    diamond: { type: 'material', hardness: 10, composition: 'carbon', structure: 'cubic crystal' },
+    python:  { type: 'language', paradigm: 'multi-paradigm', typing: 'dynamic', created: 1991 },
+    rust:    { type: 'language', paradigm: 'multi-paradigm', typing: 'static', created: 2010 },
+    javascript: { type: 'language', paradigm: 'multi-paradigm', typing: 'dynamic', created: 1995 },
+  },
 
-const TAU = Math.PI * 2;
-const TILT = 0.38;
-const COS_T = Math.cos(TILT), SIN_T = Math.sin(TILT);
-
-const GROUP_SPHERE = [
-  { key: 'vitality',  lat: 0.10, bandH: 0.13, speed: 0.024, trail: 4 },
-  { key: 'structure', lat: 0.24, bandH: 0.12, speed: 0.021, trail: 4 },
-  { key: 'knowledge', lat: 0.38, bandH: 0.12, speed: 0.018, trail: 3 },
-  { key: 'memory',    lat: 0.52, bandH: 0.11, speed: 0.016, trail: 3 },
-  { key: 'integrity', lat: 0.65, bandH: 0.10, speed: 0.014, trail: 3 },
-  { key: 'security',  lat: 0.78, bandH: 0.09, speed: 0.012, trail: 3 },
-  { key: 'identity',  lat: 0.92, bandH: 0.08, speed: 0.010, trail: 2 },
-];
-
-const BITMAP_ROWS = 9;
-const textBitmaps = {};
-
-function generateBitmap(text, copies) {
-  const oc = document.createElement('canvas');
-  const fontSize = BITMAP_ROWS;
-  oc.height = BITMAP_ROWS + 2;
-  const octx = oc.getContext('2d');
-  octx.font = `bold ${fontSize}px monospace`;
-  const singleW = Math.ceil(octx.measureText(text).width) + 4;
-  const gap = Math.ceil(singleW * 0.3);
-  const totalW = (singleW + gap) * copies;
-  oc.width = totalW;
-
-  octx.fillStyle = '#000';
-  octx.fillRect(0, 0, totalW, oc.height);
-  octx.fillStyle = '#fff';
-  octx.font = `bold ${fontSize}px monospace`;
-  octx.textBaseline = 'top';
-  for (let c = 0; c < copies; c++) {
-    octx.fillText(text, c * (singleW + gap) + 2, 1);
-  }
-
-  const imgData = octx.getImageData(0, 0, totalW, BITMAP_ROWS + 2);
-  const d = imgData.data;
-  const bitmap = [];
-  for (let y = 0; y < BITMAP_ROWS; y++) {
-    bitmap[y] = [];
-    for (let x = 0; x < totalW; x++) {
-      bitmap[y][x] = d[((y + 1) * totalW + x) * 4] / 255;
-    }
-  }
-  return { bitmap, width: totalW, height: BITMAP_ROWS };
-}
-
-Object.keys(GROUPS).forEach(key => {
-  textBitmaps[key] = generateBitmap(GROUPS[key].label, 3);
-});
-
-function sphProj(lat, theta, R, cx0, cy0) {
-  const cL = Math.cos(lat), sL = Math.sin(lat);
-  const x3 = R * cL * Math.cos(theta);
-  const y3 = R * cL * Math.sin(theta);
-  const z3 = R * sL;
-  const yP = y3 * COS_T - z3 * SIN_T;
-  const zP = y3 * SIN_T + z3 * COS_T;
-  return { x: cx0 + x3, y: cy0 + yP, depth: (zP + R) / (2 * R) };
-}
-
-const bugs = {};
-GROUP_SPHERE.forEach(gs => {
-  bugs[gs.key] = {
-    angle: Math.random() * TAU,
-    wobPhase: Math.random() * 100,
-    trail: [],
-  };
-});
-
-const SCAN_DEPTH = 0.35;
-const ARC_LEN = 25;
-
-function drawVis() {
-  if (!playing || !analyser) return;
-  const c = document.getElementById('vis');
-  const cx = c.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  c.width = c.offsetWidth * dpr;
-  c.height = c.offsetHeight * dpr;
-  cx.scale(dpr, dpr);
-
-  const w = c.offsetWidth, h = c.offsetHeight;
-  const freqData = new Uint8Array(analyser.frequencyBinCount);
-  let frameCount = 0;
-
-  function frame() {
-    if (!playing) return;
-    animId = requestAnimationFrame(frame);
-    analyser.getByteFrequencyData(freqData);
-    frameCount++;
-
-    cx.fillStyle = 'rgba(1, 1, 5, 0.010)';
-    cx.fillRect(0, 0, w, h);
-
-    const cx0 = w / 2, cy0 = h / 2;
-    const R = Math.min(cx0, cy0) * 0.88;
-
-    let totalEnergy = 0;
-    for (let i = 0; i < 256; i++) totalEnergy += freqData[i];
-    const energy = totalEnergy / 256 / 255;
-
-    const activeCount = Math.min(7, Math.floor(frameCount / 240) + 1);
-
-    cx.lineCap = 'round';
-    cx.lineJoin = 'round';
-
-    GROUP_SPHERE.forEach((gs, gi) => {
-      if (gi >= activeCount) return;
-      const birthFrame = gi * 240;
-      const age = frameCount - birthFrame;
-      const birthFade = Math.min(1, age / 90);
-
-      const group = GROUPS[gs.key];
-      const bm = textBitmaps[gs.key];
-      const bug = bugs[gs.key];
-      const color = group.color;
-
-      const bandStart = Math.floor((gi / 7) * 200);
-      let gE = 0;
-      for (let b = 0; b < 28; b++) gE += freqData[bandStart + b];
-      gE = gE / 28 / 255;
-
-      const hasFault = COMB.some(d => d.g === gs.key && d.s === 'fail');
-      const hasWarn = COMB.some(d => d.g === gs.key && d.s === 'warn');
-      const dC = hasFault ? [255, 60, 40] :
-                 hasWarn  ? [255, Math.round(color[1]*0.5+220*0.5), Math.round(color[2]*0.3)] :
-                 color;
-
-      bug.wobPhase += 0.011 + gE * 0.005;
-      const speedWob = 1 + 0.2 * Math.sin(bug.wobPhase * 1.7 + gi * 2.3);
-      bug.angle += gs.speed * (0.5 + gE * 2.5) * speedWob;
-
-      const latWob = Math.sin(bug.wobPhase * 2.1 + gi) * 0.04
-                   + Math.sin(bug.wobPhase * 5.3 + gi * 3) * 0.015
-                   + Math.sin(bug.wobPhase * 0.7 + gi * 0.5) * 0.025;
-
-      const pos = sphProj(gs.lat + latWob, bug.angle, R, cx0, cy0);
-      const dep = 0.15 + 0.85 * pos.depth;
-
-      const bugNorm = ((bug.angle % TAU) + TAU) % TAU;
-      const bmCol = Math.floor((bugNorm / TAU) * bm.width) % bm.width;
-
-      bug.trail.push({ x: pos.x, y: pos.y });
-      if (bug.trail.length > ARC_LEN) bug.trail.shift();
-
-      if (bug.trail.length > 2) {
-        cx.beginPath();
-        cx.moveTo(bug.trail[0].x, bug.trail[0].y);
-        for (let i = 1; i < bug.trail.length; i++) cx.lineTo(bug.trail[i].x, bug.trail[i].y);
-        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${birthFade * dep * (0.03 + gE * 0.05)})`;
-        cx.lineWidth = 3 + gE * 3;
-        cx.stroke();
-
-        cx.beginPath();
-        cx.moveTo(bug.trail[0].x, bug.trail[0].y);
-        for (let i = 1; i < bug.trail.length; i++) cx.lineTo(bug.trail[i].x, bug.trail[i].y);
-        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${birthFade * dep * (0.08 + gE * 0.12)})`;
-        cx.lineWidth = 0.8 + gE * 0.5;
-        cx.stroke();
-      }
-
-      for (let row = 0; row < bm.height; row++) {
-        const intensity = bm.bitmap[row][bmCol];
-        if (intensity < 0.06) continue;
-
-        const t0 = (row / bm.height) * SCAN_DEPTH;
-        const t1 = ((row + 1) / bm.height) * SCAN_DEPTH;
-
-        const x0 = pos.x + (cx0 - pos.x) * t0;
-        const y0 = pos.y + (cy0 - pos.y) * t0;
-        const x1 = pos.x + (cx0 - pos.x) * t1;
-        const y1 = pos.y + (cy0 - pos.y) * t1;
-
-        const scanA = intensity * birthFade * dep * (0.06 + gE * 0.1);
-
-        cx.beginPath();
-        cx.moveTo(x0, y0);
-        cx.lineTo(x1, y1);
-        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${scanA})`;
-        cx.lineWidth = 0.8 + gE * 0.8 + intensity * 0.5;
-        cx.stroke();
-      }
-
-      const beamA = birthFade * dep * (0.008 + gE * 0.015);
-      if (beamA > 0.005) {
-        const beamEnd = SCAN_DEPTH * 1.2; 
-        cx.beginPath();
-        cx.moveTo(pos.x, pos.y);
-        cx.lineTo(pos.x + (cx0 - pos.x) * beamEnd, pos.y + (cy0 - pos.y) * beamEnd);
-        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${beamA})`;
-        cx.lineWidth = 0.3;
-        cx.stroke();
-      }
-
-      const headA = birthFade * dep * (0.12 + gE * 0.2);
-      cx.beginPath();
-      cx.arc(pos.x, pos.y, 1.5 + gE * 2, 0, TAU);
-      cx.fillStyle = `rgba(255,255,255,${headA})`;
-      cx.fill();
-      
-      cx.beginPath();
-      cx.arc(pos.x, pos.y, 3 + gE * 3, 0, TAU);
-      cx.fillStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${headA * 0.3})`;
-      cx.fill();
-    });
-
-    const qR = R * 0.015 + energy * R * 0.01;
-    const qG = cx.createRadialGradient(cx0, cy0, 0, cx0, cy0, qR * 2);
-    qG.addColorStop(0, `rgba(255,255,255,${0.03 + energy * 0.08})`);
-    qG.addColorStop(0.4, `rgba(200,190,170,${0.01 + energy * 0.03})`);
-    qG.addColorStop(1, 'rgba(180,170,150,0)');
-    cx.fillStyle = qG;
-    cx.beginPath();
-    cx.arc(cx0, cy0, qR * 2, 0, TAU);
-    cx.fill();
-  }
-
-  frame();
-}
-
-// ── CLAUDE CODE MCP WEBSOCKET BRIDGE ──
-const ws = new WebSocket('ws://localhost:5540');
-ws.onopen = () => console.log('[KV Revolver] Connected to Claude Code Socket.');
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  if (data.action === 'trigger_snap_lock') {
-    console.log('[DRT] Received 27-Step Matrix:', data.payload);
-    
-    // Simulate solving visual lock:
-    let stepCount = 0;
-    const interval = setInterval(() => {
-        if(stepCount >= 27) {
-            clearInterval(interval);
-            document.getElementById('movement').textContent = "SNAP LOCK";
-            document.getElementById('movement').style.color = "#00ffaa";
-            document.getElementById('character').textContent = "Eigenvector Matrix Stabilized";
-            return;
-        }
-        
-        let step = data.payload.ribosome_traversal[stepCount];
-        document.getElementById('movement').textContent = `RIBOSOME ${step.step_id}`;
-        document.getElementById('character').textContent = `${step.action} [${step.socratic_variable}]`;
-        document.getElementById('line').textContent = data.payload.problem_summary;
-        
-        // Spin the bugs wildly mimicking structural adjustment
-        Object.values(bugs).forEach(b => {
-             b.angle += step.shift_value * 2.0;
-        });
-
-        stepCount++;
-    }, 400); // Wait between steps to visualize
+  // Relation patterns
+  relations: {
+    closer:   { prop: 'dist_km', compare: 'less', verb: 'closer to Earth' },
+    farther:  { prop: 'dist_km', compare: 'greater', verb: 'farther from Earth' },
+    further:  { prop: 'dist_km', compare: 'greater', verb: 'farther from Earth' },
+    bigger:   { prop: 'radius_km', compare: 'greater', verb: 'bigger (by radius)' },
+    larger:   { prop: 'radius_km', compare: 'greater', verb: 'bigger (by radius)' },
+    smaller:  { prop: 'radius_km', compare: 'less', verb: 'smaller (by radius)' },
+    heavier:  { prop: 'mass_label', compare: 'mass', verb: 'more massive' },
+    hotter:   { prop: 'temp_c', compare: 'temp', verb: 'hotter' },
+    older:    { prop: 'age_by', compare: 'greater', verb: 'older' },
+    faster:   { prop: 'speed_ms', compare: 'greater', verb: 'faster' },
+    harder:   { prop: 'hardness', compare: 'greater', verb: 'harder' },
   }
 };
+
+// ── STOPWORDS ──
+const STOPWORDS = new Set(['is','the','a','an','than','or','and','of','to','in','it','what','how','which','does','do','can','will','are','was','were','be','been','has','have','had','its','this','that','these','those','from','for','with','at','by','on','about','not','no','yes','very','more','most','much','many','some','any','each','every','all','both','few','so','too','also','just','only','then','now','here','there','where','when','why','who','whom','whose','if','but','yet','nor','either','neither','whether','because','since','while','until','after','before','during','between','through','into','out','up','down','over','under','again','once','other','another','own','same','such','like','as']);
+
+// ── RANK PROCESSORS ──
+// Each returns a transformation object showing what happened
+
+function rankProcess(input, rankIdx) {
+  switch(rankIdx) {
+    case 6: return processInput(input);
+    case 5: return processTokenize(input);
+    case 4: return processEmbed(input);
+    case 3: return processAttend(input);
+    case 2: return processCompress(input);
+    case 1: return processSynthesize(input);
+    case 0: return processCrystallize(input);
+    default: return input;
+  }
+}
+
+function processInput(state) {
+  // Rank 6: raw text → normalized words
+  const rawText = (typeof state === 'string' ? state : state.raw) || '';
+  const normalized = rawText.toLowerCase().replace(/[^\w\s']/g, ' ').trim();
+  const words = normalized.split(/\s+/).filter(w => w.length > 0);
+  return { words, raw: rawText, type: 'input' };
+}
+
+function processTokenize(state) {
+  // Rank 5: separate content words from stopwords, detect question type
+  const content = state.words.filter(w => !STOPWORDS.has(w));
+  const stopped = state.words.filter(w => STOPWORDS.has(w));
+  let qtype = 'statement';
+  const raw = state.raw.toLowerCase();
+  if (raw.includes('?') || raw.startsWith('is ') || raw.startsWith('what ') || raw.startsWith('how ') ||
+      raw.startsWith('which ') || raw.startsWith('why ') || raw.startsWith('who ') || raw.startsWith('where ') ||
+      raw.startsWith('when ') || raw.startsWith('does ') || raw.startsWith('do ') || raw.startsWith('can ')) {
+    if (raw.startsWith('what') || raw.startsWith('how much') || raw.startsWith('how far') || raw.startsWith('how big')) qtype = 'factual';
+    else if (content.some(w => KG.relations[w])) qtype = 'comparison';
+    else if (raw.startsWith('why')) qtype = 'causal';
+    else if (raw.startsWith('how')) qtype = 'procedural';
+    else qtype = 'yes-no';
+  }
+  return { ...state, content, stopped, qtype, type: 'tokenized' };
+}
+
+function processEmbed(state) {
+  // Rank 4: map content words to knowledge graph entities
+  const entities = [];
+  const relations = [];
+  const unmapped = [];
+
+  state.content.forEach(w => {
+    // Check relations FIRST (prevents "closer" matching entity "c")
+    const rel = Object.keys(KG.relations).find(r => w === r || w.startsWith(r));
+    if (rel) { relations.push({ word: w, key: rel, data: KG.relations[rel] }); return; }
+    // Check entities — exact match, plural, or prefix (but key must be >= 3 chars for prefix)
+    const key = Object.keys(KG.entities).find(k => w === k || w === k + 's' || (k.length >= 3 && w.startsWith(k)));
+    if (key) { entities.push({ word: w, key, data: KG.entities[key] }); return; }
+    unmapped.push(w);
+  });
+
+  return { ...state, entities, relations, unmapped, type: 'embedded' };
+}
+
+function processAttend(state) {
+  // Rank 3: cross-attention — find which entities relate to which via relations
+  const connections = [];
+
+  if (state.entities.length >= 2 && state.relations.length >= 1) {
+    // Comparison: entity A [relation] entity B
+    const rel = state.relations[0];
+    for (let i = 0; i < state.entities.length; i++) {
+      for (let j = i + 1; j < state.entities.length; j++) {
+        const a = state.entities[i];
+        const b = state.entities[j];
+        const prop = rel.data.prop;
+        if (a.data[prop] !== undefined && b.data[prop] !== undefined) {
+          connections.push({ a, b, relation: rel, prop });
+        }
+      }
+    }
+  } else if (state.entities.length === 1) {
+    // Single entity query — attend to properties
+    const ent = state.entities[0];
+    connections.push({ a: ent, b: null, relation: null, prop: 'describe' });
+  }
+
+  return { ...state, connections, type: 'attended' };
+}
+
+function processCompress(state) {
+  // Rank 2: extract key insights from connections
+  const insights = [];
+
+  state.connections.forEach(conn => {
+    if (conn.prop === 'describe') {
+      // Describe entity
+      const d = conn.a.data;
+      const props = Object.entries(d)
+        .filter(([k,v]) => k !== 'type' && v !== null && v !== undefined)
+        .map(([k,v]) => `${k.replace(/_/g,' ')}: ${v}`);
+      insights.push({
+        severity: 'info',
+        rank: 2,
+        text: `${conn.a.key.toUpperCase()} (${d.type}) — ${props.join(' · ')}`
+      });
+    } else if (conn.relation) {
+      // Comparison
+      const rel = conn.relation;
+      const prop = rel.data.prop;
+      const va = conn.a.data[prop];
+      const vb = conn.b.data[prop];
+
+      if (typeof va === 'number' && typeof vb === 'number') {
+        const aWins = rel.data.compare === 'less' ? va < vb : va > vb;
+        const winner = aWins ? conn.a : conn.b;
+        const loser = aWins ? conn.b : conn.a;
+        const ratio = Math.max(va, vb) / Math.max(1, Math.min(va, vb));
+
+        insights.push({
+          severity: 'critical',
+          rank: 2,
+          text: `YES — ${winner.key} is ${rel.data.verb} than ${loser.key}`
+        });
+        insights.push({
+          severity: 'warn',
+          rank: 3,
+          text: `${conn.a.key}: ${prop.replace(/_/g,' ')} = ${va.toLocaleString()} · ${conn.b.key}: ${prop.replace(/_/g,' ')} = ${vb.toLocaleString()}`
+        });
+        insights.push({
+          severity: 'info',
+          rank: 4,
+          text: `Ratio: ${ratio.toFixed(1)}x — ${winner.key} ${rel.data.compare === 'less' ? 'is' : 'is'} ${ratio.toFixed(0)}x ${rel.data.verb}`
+        });
+      }
+    }
+  });
+
+  // If no insights were generated, try general knowledge
+  if (insights.length === 0 && state.entities.length > 0) {
+    state.entities.forEach(ent => {
+      const d = ent.data;
+      insights.push({
+        severity: 'info',
+        rank: 1,
+        text: `${ent.key}: ${JSON.stringify(d, null, 0).replace(/[{}"]/g, '').replace(/,/g, ' · ')}`
+      });
+    });
+  }
+
+  if (insights.length === 0) {
+    // Truly unknown — acknowledge gracefully
+    insights.push({
+      severity: 'warn',
+      rank: 0,
+      text: `No entities matched in knowledge graph. Tokens: [${state.content.join(', ')}]`
+    });
+    insights.push({
+      severity: 'info',
+      rank: 1,
+      text: `Question type detected: ${state.qtype}. Need wider knowledge base or API connection for this query.`
+    });
+  }
+
+  return { ...state, insights, type: 'compressed' };
+}
+
+function processSynthesize(state) {
+  // Rank 1: structure the answer
+  const answer = {
+    summary: '',
+    details: state.insights,
+    confidence: state.connections.length > 0 ? 'high' : state.entities.length > 0 ? 'medium' : 'low'
+  };
+
+  // Build summary from insights
+  const critical = state.insights.filter(i => i.severity === 'critical');
+  if (critical.length > 0) {
+    answer.summary = critical.map(i => i.text).join('. ');
+  } else {
+    answer.summary = state.insights.map(i => i.text).join('. ');
+  }
+
+  return { ...state, answer, type: 'synthesized' };
+}
+
+function processCrystallize(state) {
+  // Rank 0: final output format
+  const issues = [];
+
+  // Add processing trace
+  issues.push({
+    severity: 'info', rank: 6,
+    text: `Input: "${state.raw}" → ${state.words.length} words`
+  });
+  issues.push({
+    severity: 'info', rank: 5,
+    text: `Question type: ${state.qtype} · Content words: [${state.content.join(', ')}] · Stopped: ${state.stopped.length} words`
+  });
+  if (state.entities.length > 0) {
+    issues.push({
+      severity: 'info', rank: 4,
+      text: `Entities: ${state.entities.map(e => e.key + ' (' + e.data.type + ')').join(', ')}${state.relations.length > 0 ? ' · Relations: ' + state.relations.map(r => r.key).join(', ') : ''}`
+    });
+  }
+  if (state.connections.length > 0) {
+    issues.push({
+      severity: 'info', rank: 3,
+      text: `Attention: ${state.connections.length} connection(s) found between entities`
+    });
+  }
+
+  // Add answer insights
+  state.insights.forEach(i => issues.push(i));
+
+  // Add confidence
+  issues.push({
+    severity: state.answer.confidence === 'high' ? 'critical' : state.answer.confidence === 'medium' ? 'warn' : 'info',
+    rank: 0,
+    text: `Confidence: ${state.answer.confidence} · Summary: ${state.answer.summary}`
+  });
+
+  return { issues, tokens: state.content.length > 0 ? state.content : state.words.slice(0, 16) };
+}
+
+function findProblem(input) {
+  // Check for the hardcoded orbital-queen audit
+  if (input.toLowerCase().includes('check orbital-queen')) {
+    return {
+      tokens: ['canvas', 'sizing', 'audio', 'reverb', 'warmth', 'compressor',
+               'trails', 'stars', 'remove', 'bug', 'resonance', 'kepler',
+               'labels', 'analyser', 'reactive', 'performance'],
+      issues: [
+        { severity: 'critical', rank: 6, text: 'Canvas never sized to viewport — no width/height CSS on <canvas>, only on container.' },
+        { severity: 'critical', rank: 5, text: 'Audio has no compressor — 28 oscillators sum can clip. Need DynamicsCompressor.' },
+        { severity: 'critical', rank: 4, text: 'Reverb is two delay taps, not convolution — sounds thin. Need createConvolver() with impulse response.' },
+        { severity: 'warn', rank: 3, text: 'No warmth chain — laptop speakers lose low end. Need lowshelf boost + highshelf cut.' },
+        { severity: 'warn', rank: 3, text: 'btnRemove can delete the only planet at a rank — random splice breaks guarantee.' },
+        { severity: 'warn', rank: 2, text: 'countAtRank() called per planet per frame — O(n²). Cache rank counts per frame.' },
+        { severity: 'info', rank: 2, text: 'No analyser node — visuals don\'t respond to actual audio output.' },
+        { severity: 'info', rank: 1, text: 'Stars flash once (main canvas cleared each frame) — should use trail canvas.' },
+        { severity: 'info', rank: 1, text: 'Mode button has no .active class — no visual feedback for current mode.' },
+        { severity: 'info', rank: 0, text: 'mouseX/mouseY tracked but never used — dead code.' },
+      ]
+    };
+  }
+
+  // Run through the reasoning pipeline
+  let state = { raw: input };
+  for (let r = 6; r >= 0; r--) {
+    try {
+      console.log(`Rank ${r} input:`, JSON.stringify(state).substring(0, 200));
+      state = rankProcess(state, r);
+      console.log(`Rank ${r} output:`, JSON.stringify(state).substring(0, 200));
+    } catch(err) {
+      console.error(`Rank ${r} error:`, err);
+      return {
+        tokens: input.split(/\s+/).slice(0, 16),
+        issues: [{ severity: 'critical', rank: r, text: `Pipeline error at rank ${r} (${RANK_NAMES[r]}): ${err.message}` }]
+      };
+    }
+  }
+  return state; // { issues, tokens }
+}
+
+// ═══════════════════════════════════════════════
+// SOLVE PIPELINE
+// ═══════════════════════════════════════════════
+
+let solveTimer = null;
+
+function resetState() {
+  tokens.forEach(t => { try { t.stopAudio(); } catch(e) {} });
+  tokens = [];
+  phase = 'idle';
+  currentRank = -1;
+  playing = false;
+  if (tickInterval) clearInterval(tickInterval);
+  document.getElementById('btn-solve').classList.remove('active');
+}
+
+function solve() {
+  const input = document.getElementById('problem-input').value.trim();
+  if (!input) return;
+
+  // Force reset if stuck
+  if (phase !== 'idle') {
+    resetState();
+    // Small delay then re-trigger
+    setTimeout(() => solve(), 100);
+    return;
+  }
+
+  let problem;
+  try {
+    problem = findProblem(input);
+    console.log('findProblem result:', problem);
+  } catch(err) {
+    console.error('findProblem error:', err);
+    // Fallback: generic tokenization
+    const words = input.split(/\s+/).filter(w => w.length > 0);
+    problem = {
+      tokens: words.slice(0, 16),
+      issues: [{ severity: 'warn', rank: 0, text: 'Reasoning engine error: ' + err.message }]
+    };
+  }
+
+  solutionIssues = problem.issues || [];
+  const problemTokens = problem.tokens || input.split(/\s+/).slice(0, 16);
+
+  // Init audio
+  try {
+    if (!audioCtx) initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(err) {
+    console.error('Audio init error:', err);
+  }
+  playing = true;
+  startTick();
+
+  document.getElementById('btn-solve').classList.add('active');
+  document.getElementById('solution-panel').classList.remove('visible');
+  document.getElementById('solution-text').innerHTML = '';
+
+  // Phase 1: ENCODE — tokens appear on rank 6
+  phase = 'encoding';
+  phaseTime = 0;
+
+  // Bass drone for the whole solve
+  try {
+    const t0 = audioCtx.currentTime + 0.3;
+    bassDrone(ROOT, 0.04, t0, 45);
+  } catch(err) { console.error('Bass drone error:', err); }
+
+  // Create tokens with staggered entry
+  tokens = [];
+  problemTokens.forEach((word, i) => {
+    setTimeout(() => {
+      try {
+        const tok = new Token(word, i, problemTokens.length);
+        tokens.push(tok);
+        tok.startAudio();
+        const freq = ROOT * SCALE[i % SCALE.length] * 2;
+        organ(freq, 0.015, audioCtx.currentTime, 4);
+      } catch(err) { console.error('Token create error:', err); }
+    }, i * 300);
+  });
+
+  // Phase 2: PROCESSING — tokens spiral inward rank by rank
+  const encodeTime = problemTokens.length * 300 + 1500;
+  setTimeout(() => {
+    phase = 'processing';
+    processRanks(5);
+  }, encodeTime);
+}
+
+function processRanks(rank) {
+  if (rank < 0) {
+    // Phase 3: DECODE — tokens spiral back out
+    phase = 'decoding';
+    currentRank = -1;
+    decodeSequence(0);
+    return;
+  }
+
+  currentRank = rank;
+  phaseTime = 0;
+
+  // Move all tokens to this rank
+  tokens.forEach((tok, i) => {
+    setTimeout(() => {
+      tok.shiftToRank(rank);
+      rankEnergy[rank] = 1;
+    }, i * 100);
+  });
+
+  // String pad for this rank's harmonic
+  const freq = ROOT * SCALE[rank % SCALE.length];
+  stringPad(freq, 0.02, audioCtx.currentTime, 5);
+
+  // Organ chord — the rank processing
+  const chordDegs = [rank % 7, (rank + 2) % 7, (rank + 4) % 7];
+  chordDegs.forEach((deg, i) => {
+    const f = ROOT * SCALE[deg] * (i === 0 ? 1 : 2);
+    organ(f, 0.012, audioCtx.currentTime + i * 0.3, 4);
+  });
+
+  // Next rank after processing time
+  setTimeout(() => processRanks(rank - 1), 3000);
+}
+
+function decodeSequence(issueIdx) {
+  if (issueIdx >= solutionIssues.length) {
+    // Complete
+    phase = 'complete';
+    currentRank = -1;
+
+    // Resolution chord — A major (picardy third)
+    const t0 = audioCtx.currentTime;
+    organ(ROOT, 0.025, t0, 8);
+    organ(ROOT * 5/4, 0.02, t0 + 0.2, 7); // major third
+    organ(ROOT * 3/2, 0.02, t0 + 0.4, 7); // fifth
+    stringPad(ROOT * 2, 0.015, t0, 8);
+
+    // Tokens spiral back to rank 6
+    tokens.forEach((tok, i) => {
+      setTimeout(() => tok.shiftToRank(6), i * 150);
+    });
+
+    setTimeout(() => {
+      playing = false;
+      if (tickInterval) clearInterval(tickInterval);
+      document.getElementById('btn-solve').classList.remove('active');
+      // Show full solution
+      document.getElementById('solution-panel').classList.add('visible');
+      renderFullSolution();
+      // Reset for next solve
+      setTimeout(() => {
+        tokens.forEach(t => t.stopAudio());
+        tokens = [];
+        phase = 'idle';
+      }, 2000);
+    }, 3000);
+    return;
+  }
+
+  const issue = solutionIssues[issueIdx];
+  currentRank = issue.rank;
+
+  // Move some tokens to this issue's rank
+  const affected = tokens.filter((_, i) => i % solutionIssues.length === issueIdx || i % 3 === issue.rank % 3);
+  affected.forEach((tok, i) => {
+    setTimeout(() => {
+      tok.shiftToRank(issue.rank);
+      tok.brightness = 1;
+    }, i * 80);
+  });
+
+  // Severity-based audio
+  const freq = ROOT * SCALE[issue.rank % SCALE.length];
+  if (issue.severity === 'critical') {
+    // Dissonant — tritone
+    organ(freq, 0.018, audioCtx.currentTime, 3);
+    organ(freq * Math.sqrt(2), 0.012, audioCtx.currentTime + 0.1, 2.5);
+  } else if (issue.severity === 'warn') {
+    // Minor second tension
+    organ(freq, 0.015, audioCtx.currentTime, 3);
+    organ(freq * 16/15, 0.008, audioCtx.currentTime + 0.2, 2);
+  } else {
+    // Clean
+    organ(freq, 0.012, audioCtx.currentTime, 3);
+  }
+
+  // Append to solution panel
+  appendIssue(issue, issueIdx);
+
+  // Queen pulse on critical
+  if (issue.severity === 'critical') queenPulse = 1;
+
+  setTimeout(() => decodeSequence(issueIdx + 1), 2200);
+}
+
+function appendIssue(issue, idx) {
+  document.getElementById('solution-panel').classList.add('visible');
+  const div = document.createElement('div');
+  div.className = `issue ${issue.severity}`;
+  const tag = `<span class="rank-tag">rank ${issue.rank} · ${RANK_NAMES[issue.rank]}</span>`;
+  div.innerHTML = `[${issue.severity.toUpperCase()}] ${issue.text}${tag}`;
+  div.style.opacity = '0';
+  div.style.transform = 'translateX(-10px)';
+  document.getElementById('solution-text').appendChild(div);
+  requestAnimationFrame(() => {
+    div.style.transition = 'all 0.5s ease';
+    div.style.opacity = '1';
+    div.style.transform = 'translateX(0)';
+  });
+}
+
+function renderFullSolution() {
+  // Already rendered incrementally, just ensure panel is visible
+  document.getElementById('solution-panel').classList.add('visible');
+}
+
+// ═══════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════
+
+const canvas = document.getElementById('vis');
+ctx = canvas.getContext('2d');
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+  CX = W / 2;
+  CY = H / 2;
+  R = Math.min(CX, CY) * 0.9;
+
+  if (!trailCanvas) {
+    trailCanvas = document.createElement('canvas');
+    trailCtx = trailCanvas.getContext('2d');
+  }
+  trailCanvas.width = W * dpr;
+  trailCanvas.height = H * dpr;
+  trailCtx.scale(dpr, dpr);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function drawOrbits() {
+  for (let r = 0; r < RANKS; r++) {
+    const radius = rankRadius(r);
+    const [cr, cg, cb] = RANK_COLORS[r];
+    const active = r === currentRank;
+    const energy = rankEnergy[r];
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${active ? 0.25 + energy * 0.2 : 0.04 + energy * 0.08})`;
+    ctx.lineWidth = active ? 1.5 : 0.5;
+    ctx.setLineDash(r === 0 ? [] : [3, 6 + r * 2]);
+    ctx.beginPath();
+    ctx.arc(CX, CY, radius, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Rank label
+    if (active || energy > 0.3) {
+      ctx.font = '9px monospace';
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${0.2 + energy * 0.3})`;
+      ctx.fillText(RANK_NAMES[r], CX + radius + 8, CY - 4);
+    }
+  }
+}
+
+function drawQueen() {
+  const pulse = 0.5 + 0.5 * Math.sin(time * 1.2) * (0.4 + queenPulse * 0.6);
+
+  // Outer glow
+  const glow = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 0.15);
+  glow.addColorStop(0, `rgba(255,220,80,${0.3 * pulse})`);
+  glow.addColorStop(0.5, `rgba(255,180,40,${0.08 * pulse})`);
+  glow.addColorStop(1, 'rgba(255,150,30,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.15, 0, TAU);
+  ctx.fill();
+
+  // Hexagonal body
+  const qr = 10 + queenPulse * 4;
+  ctx.fillStyle = `rgba(255,210,60,${0.7 + 0.3 * pulse})`;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i - Math.PI / 6 + time * 0.08;
+    const x = CX + Math.cos(a) * qr;
+    const y = CY + Math.sin(a) * qr;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Inner light
+  ctx.fillStyle = `rgba(255,255,220,${0.4 + 0.3 * pulse})`;
+  ctx.beginPath();
+  ctx.arc(CX, CY, qr * 0.3, 0, TAU);
+  ctx.fill();
+}
+
+function drawGravityLines() {
+  for (let r = 0; r < RANKS; r++) {
+    const radius = rankRadius(r);
+    const [cr, cg, cb] = RANK_COLORS[r];
+    const energy = rankEnergy[r];
+    if (energy < 0.05) continue;
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i + time * 0.015 * (r + 1);
+      ctx.strokeStyle = `rgba(${cr},${cg},${cb},${0.02 + energy * 0.06})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(CX, CY);
+      ctx.lineTo(CX + Math.cos(a) * radius, CY + Math.sin(a) * radius);
+      ctx.stroke();
+    }
+  }
+}
+
+function updateRankSidebar() {
+  let html = '';
+  for (let r = RANKS - 1; r >= 0; r--) {
+    const [cr, cg, cb] = RANK_COLORS[r];
+    const active = r === currentRank;
+    const energy = rankEnergy[r];
+    const barW = Math.round(energy * 60);
+    html += `<div class="rank-row ${active ? 'active' : ''}" style="color:rgba(${cr},${cg},${cb},${active ? 0.9 : 0.3 + energy * 0.4})">`;
+    html += `${r} ${RANK_NAMES[r]}`;
+    html += `<span class="bar" style="width:${barW}px;background:rgba(${cr},${cg},${cb},${0.4 + energy * 0.4})"></span>`;
+    html += `</div>`;
+  }
+  document.getElementById('rank-sidebar').innerHTML = html;
+}
+
+function updatePhaseDisplay() {
+  const el = document.getElementById('phase-display');
+  if (phase === 'idle') { el.textContent = ''; return; }
+  const phaseLabel = {
+    encoding: 'ENCODING — tokens entering rank 6',
+    processing: `PROCESSING — rank ${currentRank} · ${RANK_NAMES[currentRank] || ''}`,
+    decoding: 'DECODING — solution emerging',
+    complete: 'COMPLETE'
+  };
+  el.textContent = phaseLabel[phase] || '';
+}
+
+// ── MAIN LOOP ──
+let lastTime = performance.now();
+const freqData = new Uint8Array(1024);
+
+function animate(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  time += dt;
+  phaseTime += dt;
+  frameCount++;
+
+  // Audio energy
+  let audioEnergy = 0;
+  if (analyser && playing) {
+    analyser.getByteFrequencyData(freqData);
+    for (let i = 0; i < 256; i++) audioEnergy += freqData[i];
+    audioEnergy = audioEnergy / 256 / 255;
+  }
+
+  // Decay rank energy
+  rankEnergy = rankEnergy.map(e => e * 0.97);
+  queenPulse *= 0.98;
+
+  // Trail fade
+  trailCtx.save();
+  trailCtx.setTransform(1,0,0,1,0,0);
+  trailCtx.fillStyle = 'rgba(2,2,4,0.015)';
+  trailCtx.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
+  trailCtx.restore();
+
+  // Clear main
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
+  // Draw trail
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.drawImage(trailCanvas, 0, 0);
+  ctx.restore();
+
+  drawGravityLines();
+  drawOrbits();
+  tokens.forEach(t => t.update(dt));
+  tokens.forEach(t => t.draw());
+  drawQueen();
+
+  if (frameCount % 20 === 0) {
+    updateRankSidebar();
+    updatePhaseDisplay();
+  }
+
+  requestAnimationFrame(animate);
+}
+
+// Key shortcut — Enter to solve
+document.getElementById('problem-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') solve();
+});
+
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
