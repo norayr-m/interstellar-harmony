@@ -73,7 +73,7 @@ canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0
 <canvas id="vis"></canvas>
 <div id="ui">
   <div id="top-bar">
-    <input id="problem-input" type="text" placeholder="enter problem — press solve to encode → process → decode" value="check orbital-queen.html for issues and export">
+    <input id="problem-input" type="text" placeholder="enter problem — press solve to encode → process → decode" value="check orbital dynamics for issues and export">
     <button id="btn-solve" onclick="solve()">SOLVE</button>
   </div>
 </div>
@@ -130,7 +130,7 @@ let tokens = [];
 let phase = 'idle'; // idle | encoding | processing | decoding | complete
 let phaseTime = 0;
 let currentRank = -1;
-let queenPulse = 0;
+let corePulse = 0;
 let tickInterval = null;
 let time = 0;
 let frameCount = 0;
@@ -732,8 +732,8 @@ function processCrystallize(state) {
 }
 
 function findProblem(input) {
-  // Check for the hardcoded orbital-queen audit
-  if (input.toLowerCase().includes('check orbital-queen')) {
+  // Check for the hardcoded orbital-dynamics audit
+  if (input.toLowerCase().includes('check orbital-dynamics')) {
     return {
       tokens: ['canvas', 'sizing', 'audio', 'reverb', 'warmth', 'compressor',
                'trails', 'stars', 'remove', 'bug', 'resonance', 'kepler',
@@ -962,8 +962,8 @@ function decodeSequence(issueIdx) {
   // Append to solution panel
   appendIssue(issue, issueIdx);
 
-  // Queen pulse on critical
-  if (issue.severity === 'critical') queenPulse = 1;
+  // Core pulse on critical
+  if (issue.severity === 'critical') corePulse = 1;
 
   setTimeout(() => decodeSequence(issueIdx + 1), 2200);
 }
@@ -1043,8 +1043,8 @@ function drawOrbits() {
   }
 }
 
-function drawQueen() {
-  const pulse = 0.5 + 0.5 * Math.sin(time * 1.2) * (0.4 + queenPulse * 0.6);
+function drawCore() {
+  const pulse = 0.5 + 0.5 * Math.sin(time * 1.2) * (0.4 + corePulse * 0.6);
 
   // Outer glow
   const glow = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 0.15);
@@ -1057,7 +1057,7 @@ function drawQueen() {
   ctx.fill();
 
   // Hexagonal body
-  const qr = 10 + queenPulse * 4;
+  const qr = 10 + corePulse * 4;
   ctx.fillStyle = `rgba(255,210,60,${0.7 + 0.3 * pulse})`;
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -1142,7 +1142,7 @@ function animate(now) {
 
   // Decay rank energy
   rankEnergy = rankEnergy.map(e => e * 0.97);
-  queenPulse *= 0.98;
+  corePulse *= 0.98;
 
   // Trail fade
   trailCtx.save();
@@ -1167,7 +1167,7 @@ function animate(now) {
   drawOrbits();
   tokens.forEach(t => t.update(dt));
   tokens.forEach(t => t.draw());
-  drawQueen();
+  drawCore();
 
   if (frameCount % 20 === 0) {
     updateRankSidebar();
