@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interstellar Harmony — orbital transformer geometry</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #ffffff; color: #1a1a1a; font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; font-size: 15px; line-height: 1.65; padding: 64px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { color: #0a0a0a; font-weight: 400; font-size: 32px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 8px; }
+  h2 { color: #0a0a0a; font-weight: 500; font-size: 18px; line-height: 1.4; margin: 32px 0 12px; }
+  h3 { color: #0a0a0a; font-weight: 500; font-size: 15px; line-height: 1.4; margin: 24px 0 10px; }
+  p { color: #2a2a2a; margin: 0 0 14px; }
+  ul, ol { margin: 10px 0 14px 22px; }
+  li { color: #2a2a2a; margin: 6px 0; }
+  a { color: #cc0000; text-decoration: none; border-bottom: 1px dotted rgba(204,0,0,0.4); }
+  a:hover { border-bottom-color: #cc0000; }
+  em { color: #cc0000; font-style: italic; }
+  strong { color: #0a0a0a; font-weight: 600; }
+  code { font-family: 'SF Mono', 'Menlo', 'Courier New', monospace; font-size: 13px; background: #f7f7f8; padding: 2px 6px; border-radius: 3px; color: #1a1a1a; }
+  pre { background: #f7f7f8; border-left: 3px solid #cc0000; padding: 14px 18px; border-radius: 4px; overflow-x: auto; margin: 16px 0; font: 13px/1.6 'SF Mono', 'Menlo', 'Courier New', monospace; color: #1a1a1a; }
+  pre code { background: none; padding: 0; color: #1a1a1a; font-size: inherit; }
+  blockquote { border-left: 3px solid #cc0000; padding: 10px 16px; margin: 24px 0; font-size: 13px; line-height: 1.6; color: #555; background: #fdf6f6; font-style: italic; border-radius: 0 4px 4px 0; }
+  blockquote strong { color: #0a0a0a; font-style: normal; }
+  hr { border: none; border-top: 1px solid #e8e8e8; margin: 32px 0; }
+  .subtitle { color: #888; font-style: italic; margin-bottom: 20px; font-size: 15px; }
+  .figure { margin: 24px 0; padding: 16px; background: #f7f7f8; border: 1px solid #e8e8e8; border-radius: 4px; text-align: center; }
+  .figure svg { max-width: 100%; }
+  .figure .caption { color: #888; font: 13px 'SF Mono', 'Menlo', monospace; font-style: italic; margin-top: 10px; text-align: center; }
+  .toc { background: #f7f7f8; border: 1px solid #e8e8e8; border-radius: 4px; padding: 16px 22px; margin: 20px 0 30px; }
+  .toc h2 { font-size: 13px; margin: 0 0 8px; border: none; padding: 0; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #0a0a0a; }
+  .toc ul { margin: 0 0 0 20px; font-size: 13px; }
+  .toc li { margin: 3px 0; }
+  .hl { color: #cc0000; font-weight: 600; }
+  .credit { color: #888; font-size: 11px; border-top: 1px solid #e8e8e8; padding-top: 16px; margin-top: 56px; }
+  .nav { color: #888; font: 13px 'SF Mono', 'Menlo', monospace; margin-bottom: 20px; }
+  .nav a { color: #cc0000; }
+  h2[id], h3[id] { scroll-margin-top: 20px; }
+  svg text { font-family: 'SF Mono', 'Menlo', 'Courier New', monospace; fill: #2a2a2a; }
+</style>
+</head>
+<body>
+<h1
+id="interstellar-harmony-orbital-transformer-on-a-ranked-grid">Interstellar
+Harmony — orbital transformer on a ranked grid</h1>
+<blockquote>
+<p><strong>Humble disclaimer.</strong> Amateur engineering project. We
+are not HPC professionals and make no competitive claims. Errors are
+likely. The orbital transformer is a <em>visualization of the
+encode/process/decode shape</em>, not a working language model — see <a
+href="#not">What is not in the paper</a>.</p>
+</blockquote>
+<p>GPLv3.</p>
+<hr />
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#what">What it is</a></li>
+<li><a href="#why">Why it matters — bio digital twins</a></li>
+<li><a href="#how">How it works — three phases on a ranked grid</a></li>
+<li><a href="#reading">Reading the visualization</a></li>
+<li><a href="#companion">Companion work</a></li>
+<li><a href="#not">What is not in the paper</a></li>
+<li><a href="#refs">References</a></li>
+</ul>
+<hr />
+<h2 id="what-it-is"><a id="what"></a>What it is</h2>
+<p>A browser visualization that runs a small reasoning system as three
+concentric phases on a ranked grid. The board is laid out as an onion
+shell, with rank 6 as the outermost ring and rank 0 at the centre.
+Tokens enter on the outer ring, spiral inward through the ranks during
+processing, stabilise at the centre, then spiral back outward through
+the ranks and emerge as decoded output.</p>
+<p>The whole loop runs as a single continuous animation. You press
+<strong>SOLVE</strong> and watch encode → process → decode play out as
+one motion. The reasoning engine in the middle is a small
+knowledge-graph + pattern-solver pair — not a real language model —
+chosen so the dynamics are simple enough to follow visually.</p>
+<p>The aesthetic is borrowed from Hans Zimmer’s score for Christopher
+Nolan’s <em>Interstellar</em> (2014): the organ in the dust, time as a
+physical dimension, information moving through layers we do not directly
+inhabit. The aesthetic is decoration; the structural content is the
+rank-as-time encode/process/decode geometry.</p>
+<p><strong><a
+href="https://norayr-m.github.io/interstellar-harmony/">Live demo
+→</a></strong></p>
+<p>The whole demo is a single self-contained HTML file with no build
+step, no server, and no external dependencies beyond a modern
+browser.</p>
+<hr />
+<h2 id="why-it-matters-bio-digital-twins"><a id="why"></a>Why it matters
+— bio digital twins</h2>
+<p>A bio digital twin is a computational model of a specific biological
+system — a section of cortex, a hepatic lobule, a heart chamber — wired
+tightly enough that it can predict the system’s response to a stimulus.
+Many biological systems can be naturally described by a <em>rank</em>
+coordinate: position from the periportal vein to the central vein in a
+hepatic lobule (16 zonation levels), distance from the centre of a
+cortical column (6 cortical layers), depth from the epicardium to the
+endocardium in a ventricular wall. The framework’s question is whether
+the rank coordinate can be treated as a time-like axis along which
+information flows inward (encoding) and outward (decoding).</p>
+<p>The orbital transformer makes that abstract question concrete on a
+small example. If you can build a useful encode/process/decode loop on a
+6-rank visual demo, the <em>shape</em> of the architecture transfers to
+a ranked tissue substrate where the same encode/process/decode geometry
+has biological meaning (gradient information from the boundary,
+processing in the interior, response signal back out to the
+boundary).</p>
+<p>The visualization is deliberately a small example so the geometry is
+legible. Building real biological versions of this shape is the bio
+digital twin work; the visualization is the playground for the geometry
+that those tissues share.</p>
+<p>The framing for the trio (generator + cell simulator + scanner) is
+the <a
+href="https://norayr-m.github.io/drt-generator/whitepaper.html">trio
+white paper</a>. This visualization is <em>not</em> part of the trio —
+it is a standalone illustration of the rank-as-time geometry, with
+companions in <a
+href="https://github.com/norayr-m/drt-pipeline">drt-pipeline</a> (same
+encode/decode shape on BWV 847) and <a
+href="https://github.com/norayr-m/drt-orbital-solver">drt-orbital-solver</a>
+(3D orbital framing of the same skeleton).</p>
+<hr />
+<h2 id="how-it-works-three-phases-on-a-ranked-grid"><a id="how"></a>How
+it works — three phases on a ranked grid</h2>
+<p>The substrate is a ranked grid with seven concentric ranks — rank 6
+outermost down to rank 0 at the centre. Each rank holds a fixed number
+of cells; the outer ranks hold many cells, the inner ranks hold fewer,
+and the centre is a single integration node.</p>
+<p>Three phases play out in order:</p>
+<h3 id="phase-1-encode">Phase 1 — Encode</h3>
+<p>Input tokens appear on rank 6. They are the raw signal entering the
+system from the boundary. Each token carries a small payload that the
+engine will read at the next rank inward. Visually, tokens light up
+around the outer ring.</p>
+<h3 id="phase-2-processing">Phase 2 — Processing</h3>
+<p>Each token spirals inward, rank by rank. At every rank step the token
+interacts with the local pattern store (a small knowledge graph held at
+that rank) and the local rules (small per-rank transformations). This is
+the “thinking” phase. Visually, you see the spiral path drawn in real
+time as each token moves from rank to rank, leaving a trail.</p>
+<p>When all tokens reach the centre, the central rank computes the
+aggregate output of the processing. This is the moment at which the
+system has done its work; the inward spiral phase is complete.</p>
+<h3 id="phase-3-decode">Phase 3 — Decode</h3>
+<p>The aggregate at the centre is now read out: tokens spiral outward
+through the ranks, carrying the decoded output back to the boundary. The
+outward spiral mirrors the inward one — same ranks, same rules, reversed
+direction. By the end of the phase, the decoded output has reached rank
+6 and the loop is complete.</p>
+<p>The structural framing: the rank coordinate is playing the role of
+<em>time</em> in a typical transformer or recurrent network
+architecture. A token “going inward” is the same shape as a token “going
+forward in time through layers” in a deep network. A token “going
+outward” is the backward / decode path. The encoder and decoder share
+the same substrate; the only difference is the direction of motion along
+the rank axis.</p>
+<hr />
+<h2 id="reading-the-visualization"><a id="reading"></a>Reading the
+visualization</h2>
+<p>When you open the live demo:</p>
+<ul>
+<li>The board appears as a clean onion shell with seven concentric
+rings.</li>
+<li>Press <strong>SOLVE</strong>. Tokens appear on the outer ring.</li>
+<li>The encode phase plays: tokens light up as they enter rank 6.</li>
+<li>The processing phase plays: tokens spiral inward, leaving visible
+trails. The display shows which rank each token is currently at.</li>
+<li>The centre integrates the tokens; a brief pause indicates the
+aggregate is being computed.</li>
+<li>The decode phase plays: tokens spiral outward, the trails reverse
+direction.</li>
+<li>The decoded output appears on the outer ring at the end of the
+cycle.</li>
+</ul>
+<p>What to look for:</p>
+<ul>
+<li><strong>Rank-as-time symmetry.</strong> The inward and outward
+spirals use the same substrate. The number of rank steps inward equals
+the number outward.</li>
+<li><strong>Aggregate at the centre.</strong> The single integration
+node is the analogue of an aggregate in the framework. Whatever it
+computes from the tokens is what the decoder reads out.</li>
+<li><strong>Token trails as a record of processing.</strong> The visible
+trails are the per-token paths; they are the most direct way to see what
+the engine is doing on a given input.</li>
+<li><strong>Pattern store influence.</strong> Different inputs follow
+different inward paths because the per-rank pattern stores route them
+differently. The visualization makes this routing visible without
+requiring you to read the engine’s source.</li>
+</ul>
+<hr />
+<h2 id="companion-work"><a id="companion"></a>Companion work</h2>
+<p>This visualization sits with two repositories that explore the same
+encode/process/decode shape on different substrates:</p>
+<ul>
+<li><strong><a
+href="https://github.com/norayr-m/drt-pipeline">drt-pipeline</a></strong>
+— same forward/backward shape applied to Bach’s BWV 847 fugue, with
+composer and decomposer running side by side on the same audio
+timeline.</li>
+<li><strong><a
+href="https://github.com/norayr-m/drt-orbital-solver">drt-orbital-solver</a></strong>
+— 3D orbital-mechanics framing of the same encode → solve → decode
+skeleton, with observers on orbital paths and reconstruction at
+convergence points.</li>
+</ul>
+<p>All three demonstrate the same conceptual question — <em>can the
+encode/process/decode loop be made symmetric and decomposable on a small
+enough example to fit in a browser?</em> — on three different
+substrates: ranked grid, audio timeline, 3D orbital scene.</p>
+<hr />
+<h2 id="what-is-not-in-the-paper"><a id="not"></a>What is not in the
+paper</h2>
+<p>The honest list of what this paper deliberately does not claim:</p>
+<ul>
+<li><strong>A working language model.</strong> The reasoning engine in
+the centre is a knowledge-graph + pattern-solver pair, not a trained
+transformer or any other modern language model. The “orbital
+transformer” name refers to the <em>geometric shape</em> of the
+architecture (encode → process → decode on a ranked substrate), not to a
+competitive language modelling system.</li>
+<li><strong>A norm-growth claim.</strong> Earlier prose around this
+family of demos asserted that the aggregate of many partial views had
+bigger norm than the original signal — that <span
+class="math inline">∥<em>R</em>(<em>f</em>)∥ &gt; ∥<em>f</em>∥</span>.
+That inequality has been retracted in the v0.1 draft. The current claim
+is conditional and weaker: under four hypotheses and a bounded
+computational budget, the aggregate exposes structural features that are
+not accessible from the original signal alone within the same budget.
+The orbital transformer is a visual playground for the
+encode/process/decode shape, not a proof of the conditional claim.</li>
+<li><strong>A general theorem about rank-as-time.</strong> The
+visualization treats the rank coordinate as time-like because the
+substrate is small and clean. Real biological tissues with rank
+coordinates have additional structure (asymmetries between inward and
+outward paths, noise, irregular topology) that the visualization does
+not address.</li>
+<li><strong>A music-theoretical contribution.</strong> The Hans Zimmer
+aesthetic is decoration; the soundtrack reference does not extend any
+musicological claim. The repository name and styling are tribute, not
+analysis.</li>
+</ul>
+<hr />
+<h2 id="references"><a id="refs"></a>References</h2>
+<ul>
+<li>Distributed Reconstruction work — v0.1 in preparation by N.
+Matevosyan and A. Petrosyan.</li>
+<li>Zimmer, H. — <em>Interstellar</em> original soundtrack (2014),
+aesthetic source only.</li>
+</ul>
+<p>Trio framing in detail: <a
+href="https://norayr-m.github.io/drt-generator/whitepaper.html">Generator,
+Cell Simulator, Scanner — a sparse matrix-vector trio for bio digital
+twins</a> (<a
+href="https://norayr-m.github.io/drt-generator/whitepaper.md">markdown
+source</a>). The orbital transformer is <em>not</em> part of the trio —
+it is a standalone rank-as-time visualization paired with <a
+href="https://github.com/norayr-m/drt-pipeline">drt-pipeline</a> and <a
+href="https://github.com/norayr-m/drt-orbital-solver">drt-orbital-solver</a>.</p>
+<p>Visualization co-authored with Claude (Anthropic).</p>
+<hr />
+<blockquote>
+<p><strong>Humble disclaimer.</strong> Amateur engineering project. We
+are not HPC professionals and make no competitive claims. Numbers speak;
+ego doesn’t. Errors likely.</p>
+</blockquote>
+<p>GPLv3. See <a href="LICENSE"><code>LICENSE</code></a>.</p>
+</body>
+</html>
